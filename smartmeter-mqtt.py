@@ -114,11 +114,15 @@ if __name__ == '__main__':
 
     print('Using {:s}'.format(serial_port))
 
-    import paho.mqtt.client as mqtt      # import the client1
-    broker_address = "homeee"
-    mqtt_client = mqtt.Client("P1")      # create new instance
-    mqtt_client.username_pw_set("mosquitto", "mosquitto")
-    mqtt_client.connect(broker_address)  # connect to broker
+    while True:
+        try:
+            import paho.mqtt.client as mqtt      # import the client1
+            broker_address = "mqtt.fritz.box"
+            mqtt_client = mqtt.Client("P1")      # create new instance
+            mqtt_client.username_pw_set("mosquitto", "mosquitto")
+            mqtt_client.connect(broker_address)  # connect to broker
 
-    smartmeter_thread = SmartMeterThread()
-    smartmeter_thread.run()
+            smartmeter_thread = SmartMeterThread()
+            smartmeter_thread.run()
+        except:
+            pass
