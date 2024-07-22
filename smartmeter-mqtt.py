@@ -96,9 +96,9 @@ class SmartMeterThread:
 
                 data = {'totalin': '{:.4f}'.format(self.energy_consumption_Wh / 1000.0),
                         'totalout': '{:.4f}'.format(self.energy_supply_Wh / 1000.0), 'powercur': self.power_W}
-                mqtt_client.publish("devices/smartmeter/import", json.dumps('{:.4f}'.format(self.energy_consumption_Wh / 1000.0)))
-                mqtt_client.publish("devices/smartmeter/export", json.dumps('{:.4f}'.format(self.energy_supply_Wh / 1000.0)))
-                mqtt_client.publish("devices/smartmeter/power", json.dumps(self.power_W))
+                mqtt_client.publish("devices/smartmeter/import", '{:.4f}'.format(self.energy_consumption_Wh / 1000.0))
+                mqtt_client.publish("devices/smartmeter/export", '{:.4f}'.format(self.energy_supply_Wh / 1000.0))
+                mqtt_client.publish("devices/smartmeter/power", self.power_W)
                 mqtt_client.publish("devices/smartmeter/data", json.dumps(data))
                 # print('Bezug = {:.1f} Wh  Lieferung = {:.1f} Wh  Leistung = {:4d} W'.format(energy_consumption_Wh, energy_supply_Wh, power_W))
 
