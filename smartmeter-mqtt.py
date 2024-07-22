@@ -94,8 +94,8 @@ class SmartMeterThread:
                         elif val['objName'] == b'\x01\x00\x10\x07\x00\xff':
                             self.power_W = pow10(val['value'], val['scaler'])
 
-                data = {'totalin': self.energy_consumption_Wh / 100,
-                        'totalout': self.energy_supply_Wh / 100, 'power': self.power_W}
+                data = {'totalin': '{:.4f}'.format( self.energy_consumption_Wh / 1000.0),
+                        'totalout': '{:.4f}'.format(self.energy_supply_Wh / 1000.0), 'power': self.power_W}
                 mqtt_client.publish("devices/smartmeter/import", json.dumps(self.energy_consumption_Wh))
                 mqtt_client.publish("devices/smartmeter/export", json.dumps(self.energy_supply_Wh))
                 mqtt_client.publish("devices/smartmeter/power", json.dumps(self.power_W))
