@@ -25,8 +25,24 @@
 
 import sys
 import serial
+
+import io
+import re
+import time
+from datetime import timedelta
+import threading
+
 from sml import *
-from pprint import pprint
+import paho.mqtt.client as mqtt
+import json
+import logging
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger()
+
 
 
 def pow10(a, e):
@@ -42,6 +58,62 @@ def pow10(a, e):
     return a
 
 
+######################################################################
+class SmartMeterThread:
+    def __init__(self):
+        self.running = True
+        self.energy_consumption_Wh = 0.0
+        self.energy_supply_Wh = 0.0
+        self.power_W = 0
+
+    def run(self):
+        logging.info('Init start')
+        sml = Sml()
+
+        tty = serial.Serial(
+            port=serial_port,
+            baudrate=9600,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS
+        )
+        logging.info('\nInit done')
+
+        while self.running:
+            byte = tty.read()
+            if sml.parse_byte(byte) == True:
+                # print()
+                logging.debug(sml.sml_file)
+                messages = [
+                    x for x in sml.sml_file if 'GetListResponse' in x['messageBody']]
+                for msg in messages:
+                    for val in msg['messageBody']['GetListResponse']['valList']:
+                        # Wirkarbeit Bezug (+)
+                        if val['objName'] == b'\x01\x00\x01\x08\x00\xff':
+                            self.energy_consumption_Wh = pow10(
+                                val['value'], val['scaler'])
+
+                        # Wirkarbeit Lieferung (-)
+                        elif val['objName'] == b'\x01\x00\x02\x08\x00\xff':
+                            self.energy_supply_Wh = pow10(
+                                val['value'], val['scaler'])
+
+                        # momentane Wirkleistung (+/-)
+                        elif val['objName'] == b'\x01\x00\x10\x07\x00\xff':
+                            self.power_W = pow10(val['value'], val['scaler'])
+
+                data = {'totalin': '{:.4f}'.format(self.energy_consumption_Wh / 1000.0),
+                        'totalout': '{:.4f}'.format(self.energy_supply_Wh / 1000.0), 'powercur': self.power_W}
+                mqtt_client.publish("devices/smartmeter/import", '{:.4f}'.format(self.energy_consumption_Wh / 1000.0))
+                mqtt_client.publish("devices/smartmeter/export", '{:.4f}'.format(self.energy_supply_Wh / 1000.0))
+                mqtt_client.publish("devices/smartmeter/power", self.power_W)
+                mqtt_client.publish("devices/smartmeter/data", json.dumps(data))
+                logging.info(data)
+
+    def stop(self):
+        self.running = False
+
+
 if __name__ == '__main__':
 
     serial_port = '/dev/ttyUSB0'
@@ -49,37 +121,17 @@ if __name__ == '__main__':
     if (len(sys.argv) > 1):
         serial_port = sys.argv[1]
 
-    print('Using {:s}'.format(serial_port))
-
-    port = serial.Serial(
-        port=serial_port,
-        baudrate=9600,
-        parity=serial.PARITY_NONE,
-        stopbits=serial.STOPBITS_ONE,
-        bytesize=serial.EIGHTBITS
-    )
-
-    sml = Sml()
-
-    energy_consumption_kWh = 0.0
-    energy_supply_kWh = 0.0
-    power_W = 0
+    logging.info('Using {:s}'.format(serial_port))
 
     while True:
-        byte = port.read()
-        if sml.parse_byte(byte) == True:
-            # print()
-            # pprint(sml.sml_file, indent=2, width=120)
+        try:
+            import paho.mqtt.client as mqtt      # import the client1
+            broker_address = "mqtt.fritz.box"
+            mqtt_client = mqtt.Client("P1")      # create new instance
+            mqtt_client.username_pw_set("mosquitto", "mosquitto")
+            mqtt_client.connect(broker_address)  # connect to broker
 
-            messages = [x for x in sml.sml_file if 'GetListResponse' in x['messageBody']]
-            for msg in messages:
-                for val in msg['messageBody']['GetListResponse']['valList']:
-                    if val['objName'] == b'\x01\x00\x01\x08\x00\xff':       # Wirkarbeit Bezug (+)
-                        energy_consumption_kWh = pow10(val['value'], val['scaler']) / 1000
-                    elif val['objName'] == b'\x01\x00\x02\x08\x00\xff':     # Wirkarbeit Lieferung (-)
-                        energy_supply_kWh = pow10(val['value'], val['scaler']) / 1000
-                    elif val['objName'] == b'\x01\x00\x10\x07\x00\xff':     # Leistung (+/-)
-                        power_W = pow10(val['value'], val['scaler'])
-
-            print('Bezug = {:.3f} kWh  Lieferung = {:.3f} kWh  Leistung = {:4d} W'.format(
-                energy_consumption_kWh, energy_supply_kWh, power_W))
+            smartmeter_thread = SmartMeterThread()
+            smartmeter_thread.run()
+        except:
+            pass
