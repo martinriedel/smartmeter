@@ -9,6 +9,9 @@ echo 'Installing packages'
 if [ -z $PIP3 ]; then
   apt update
   apt -y install python3-pip
+  apt -y install python3-paho-mqtt
+  apt -y install python3-serial
+
 fi
 pip3 install -r requirements.txt
 echo 'Packages install completed'
